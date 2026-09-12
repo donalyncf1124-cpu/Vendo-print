@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Vendo Print Portal</title>
+  <style>
+    body {
+      font-family:Arial;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      margin:0;
+      text-align:center;
+      background: url('attachments/vDdi4aePLvghHNc5y8zR8.png') no-repeat center center fixed;
+      background-size: cover;
+    }
+    .container {
+      max-width:800px;
+      margin:auto;
+      text-align:center;
+      background:rgba(255,255,255,0.85);
+      padding:20px;
+      border-radius:12px;
+    }
+    input, button { margin:10px; padding:10px; }
+    .btn { padding:12px; border:none; cursor:pointer; margin:5px; }
+    .size { background:#ffcc99; }
+    .mode { background:#99ccff; }
+    .idset { background:#66ccff; }
+    img { max-width:100%; display:block; margin:auto; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Upload a Photo or File</h2>
+    <input type="file" id="fileInput" accept="image/*,.txt,.pdf"><br>
+
+    <!-- Access Code Entry -->
+    <h3>Enter Access Code</h3>
+    <input type="text" id="accessInput" placeholder="Enter code">
+    <button class="btn" onclick="validateCode()">Validate Code</button>
+    <p id="accessStatus"></p>
+
+    <!-- Page Size Buttons -->
+    <h3>Select Page Size</h3>
+    <button class="btn size" onclick="setSize('A4')">A4</button>
+    <button class="btn size" onclick="setSize('Letter')">Letter</button>
+    <button class="btn size" onclick="setSize('Long')">Long</button>
+
+    <!-- Print Mode Buttons -->
+    <h3>Select Print Mode</h3>
+    <button class="btn mode" onclick="printFile('color')">Colored</button>
+    <button class="btn mode" onclick="printFile('bwtext')">Black & White Text</button>
+    <button class="btn mode" onclick="printFile('bwimage')">Black & White Image</button>
+    <button class="btn idset" onclick="generateIDSet()">ID Photo Set (A4 Matte Photo Paper)</button>
+
+    <div id="preview"></div>
+  </div>
+
+  <script>
+    let selectedSize = null;
+    let validated = false;
+
+    function validateCode(){
+      let entered = document.getElementById("accessInput").value.trim();
+      let codes = JSON.parse(localStorage.getItem("vendoCodes")) || [];
+      let found = codes.find(c => c.code === entered && !c.used);
+      if(found){
+        found.used = true;
+        localStorage.setItem("vendoCodes", JSON.stringify(codes));
+        document.getElementById("accessStatus").innerText = "✅ Code accepted!";
+        validated = true;
+      } else {
+        document.getElementById("accessStatus").innerText = "❌ Invalid or already used.";
+        validated = false;
+      }
+    }
+
+    function setSize(size){ selectedSize = size; }
+
+    // Print uploaded file only (image, text, or PDF)
+    function printFile(mode){
+      if(!validated){ alert("⚠️ Please enter a valid access code first."); return; }
+      if(!selectedSize){ alert("⚠️ Please select a page size first."); return; }
+      let fileInput = document.getElementById("fileInput");
+      if(fileInput.files.length === 0){ alert("⚠️ Please select a file first."); return; }
+
+      let file = fileInput.files[0];
+      let reader = new FileReader();
+
+      if(file.type.startsWith("image")){
+        reader.onload = function(e){
+          let printWindow = window.open('', '', 'height=600,width=800');
+          printWindow.document.write('<img src="' + e.target.result + '" style="width:100%">');
+          printWindow.document.close();
+          printWindow.print();
+        };
+        reader.readAsDataURL(file);
+      } else if(file.type === "text/plain"){
+        reader.onload = function(e){
+          let printWindow = window.open('', '', 'height=600,width=800');
+          printWindow.document.write('<pre>' + e.target.result + '</pre>');
+          printWindow.document.close();
+          printWindow.print();
+        };
+        reader.readAsText(file);
+      } else if(file.type === "application/pdf"){
+        let url = URL.createObjectURL(file);
+        let printWindow = window.open('', '', 'height=600,width=800');
+        printWindow.document.write('<embed src="' + url + '" type="application/pdf" width="100%" height="100%">');
+        printWindow.document.close();
+        // Browser's PDF viewer handles printing
+      } else {
+        alert("Unsupported file type.");
+      }
+    }
+
+    // Generate ID Photo Set on A4 paper, centered
+    function generateIDSet(){
+      if(!validated){ alert("⚠️ Please enter a valid access code first."); return; }
+      let fileInput = document.getElementById("fileInput");
+      if(fileInput.files.length === 0){ alert("⚠️ Please select a photo first."); return; }
+
+      let reader = new FileReader();
+      reader.onload = function(evt){
+        let img = new Image();
+        img.src = evt.target.result;
+        img.onload = function(){
+          let canvas = document.createElement("canvas");
+          canvas.width = 2480; // A4 width at 300 DPI
+          canvas.height = 3508; // A4 height at 300 DPI
+          let ctx = canvas.getContext("2d");
+
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0,0,canvas.width,canvas.height);
+
+          let totalWidth2x2 = 4 * 600;
+          let startX2x2 = (canvas.width - totalWidth2x2) / 2;
+          let y2x2 = 200;
+
+          let totalWidth1x1 = 4 * 300;
+          let startX1x1 = (canvas.width - totalWidth1x1) / 2;
+          let y1x1 = 1000;
+
+          for(let i=0;i<4;i++){
+            let x = startX2x2 + (i*600);
+            ctx.drawImage(img, x, y2x2, 600, 600);
+            ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
+            ctx.strokeRect(x, y2x2, 600, 600);
+          }
+
+          for(let i=0;i<4;i++){
+            let x = startX1x1 + (i*300);
+            ctx.drawImage(img, x, y1x1, 300, 300);
+            ctx.strokeStyle = "#000"; ctx.lineWidth = 1;
+            ctx.strokeRect(x, y1x1, 300, 300);
+          }
+
+          let previewImg = new Image();
+          previewImg.src = canvas.toDataURL("image/png");
+          document.getElementById("preview").innerHTML = "";
+          document.getElementById("preview").appendChild(previewImg);
+
+          let printWindow = window.open('', '', 'height=600,width=800');
+          printWindow.document.write('<img src="' + previewImg.src + '" style="width:100%">');
+          printWindow.document.close();
+          printWindow.print();
+        };
+      };
+      reader.readAsDataURL(fileInput.files[0]);
+    }
+  </script>
+</body>
+</html>
